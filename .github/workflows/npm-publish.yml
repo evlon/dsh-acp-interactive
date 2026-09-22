@@ -1,0 +1,129 @@
+# 发布 dsh-acp-interactive 到公共 npm registry + 创建 GitHub Release：推送版本 tag 时触发（也可手动）。
+#
+# 流程：
+#   1. `npm version <patch|minor|major>`  提升 package.json 版本并打 tag
+#   2. `git push --tags`                  触发本 workflow
+#   3. job 安装依赖、构建、执行 `npm publish`
+#   4. npm publish 成功后，用 commit 信息生成 changelog，创建 GitHub Release（tag 名即版本号）
+#
+# 需要名为 `NPM_TOKEN` 的仓库 secret：
+#   npm token create                     （生成 automation token）
+#   -> Settings > Secrets and variables > Actions > New repository secret: NPM_TOKEN
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 v0.2.0）。留空则仅测试不发布；填版本号时若 npm 已存在该版本则跳过 publish，仅补建 GitHub Release。'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  publish:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 创建 GitHub Release（含更新 release 资产）
+      id-token: write # npm provenance / attestation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # 需要 tag 历史生成 changelog
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          # 对齐 GitHub Actions runner 的默认 Node 24（Node 20 已被弃用）。
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          # tag 触发：用 tag 名（v*）；手动触发：用输入 version
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            VER="${{ inputs.version }}"
+            if [ -z "$VER" ]; then
+              echo "tag=" >> "$GITHUB_OUTPUT"
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag=$VER" >> "$GITHUB_OUTPUT"
+              # npm 已有该版本则跳过 publish（幂等），仅补建 Release
+              if npm view "dsh-acp-interactive@${VER#v}" version >/dev/null 2>&1; then
+                echo "publish=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "publish=true" >> "$GITHUB_OUTPUT"
+              fi
+            fi
+          fi
+
+      - name: Publish to npm
+        if: steps.version.outputs.publish == 'true'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Generate changelog
+        if: steps.version.outputs.tag != ''
+        id: changelog
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          # 最近一条 commit message 作为 release 标题（提交规范：feat:/fix:/chore: 开头）
+          COMMIT_MSG=$(git log -1 --pretty=%s "$TAG")
+          {
+            echo "title=$COMMIT_MSG"
+            echo "body_path=release-body.md"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## 变更"
+            echo ""
+            PREV_TAG=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              RANGE="$PREV_TAG..$TAG"
+              echo "**提交范围**：\`$RANGE\`"
+            else
+              RANGE="$TAG"
+            fi
+            echo ""
+            echo "### 🚀 新功能"
+            COMMITS=$(git log --no-merges --pretty=format:'- %s' "$RANGE")
+            FEATS=$(printf '%s\n' "$COMMITS" | grep -E '^\- (feat|feature|add|新增)' || true)
+            if [ -z "$FEATS" ]; then echo "（无）"; else printf '%s\n' "$FEATS"; fi
+            echo ""
+            echo "### 🐛 修复"
+            FIXES=$(printf '%s\n' "$COMMITS" | grep -E '^\- (fix|修复)' || true)
+            if [ -z "$FIXES" ]; then echo "（无）"; else printf '%s\n' "$FIXES"; fi
+            echo ""
+            echo "### 📝 其他"
+            OTHERS=$(printf '%s\n' "$COMMITS" | grep -Ev '^\- (feat|feature|add|新增|fix|修复)' || true)
+            if [ -z "$OTHERS" ]; then echo "（无）"; else printf '%s\n' "$OTHERS"; fi
+            echo ""
+            echo "---"
+            echo "npm: \`npm view dsh-acp-interactive\`"
+          } > release-body.md
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }} ${{ steps.changelog.outputs.title }}
+          body_path: ${{ steps.changelog.outputs.body_path }}
+          generate_release_notes: false
