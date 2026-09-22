@@ -21,7 +21,12 @@ const { values } = parseArgs({
   options: { config: { type: 'string', short: 'c' } },
   strict: true,
 })
-const ctx = await boot(NAME, resolveConfigPath(values.config ?? './cordis.yml', snapshotMode))
+// Resolve the config path: `--config`/`-c` CLI arg wins, then the `DSH_ACP_CONFIG`
+// env var (lets hosts inject the config path without passing args), then the
+// local default. This keeps HiCoding-style process spawns (`command` + optional
+// single-token args) working without relying on multi-token argument splitting.
+const configPath = values.config ?? process.env['DSH_ACP_CONFIG'] ?? './cordis.yml'
+const ctx = await boot(NAME, resolveConfigPath(configPath, snapshotMode))
 if (snapshotMode !== undefined) {
   process.stdin.on('end', () => {
     void ctx.fiber.dispose().then(() => { process.exit(0) })
