@@ -1,0 +1,6 @@
+node_modules/
+lib/
+*.tsbuildinfo
+.sessions/
+session-query.db
+.DS_Store
