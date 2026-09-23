@@ -9,6 +9,27 @@ The official `deepseek-harness` packages stay untouched: this package re-impleme
 the complete ACP `Agent` over the public `@agentclientprotocol/sdk`
 `AgentSideConnection` and the public agent-factory / session-persistence APIs.
 
+## Install
+
+Published to the public npm registry as the **unscoped** package
+`dsh-acp-interactive` (no `@deepseek-ai/` scope — unlike every official
+`@deepseek-ai/dsh-*` package):
+
+```sh
+npm i dsh-acp-interactive
+```
+
+Current published version: `0.1.0` (`latest`). After install, the
+`dsh-acp-interactive` binary is available on `PATH`; it also exposes a
+programmatic API (`dsh-acp-interactive/app`, `dsh-acp-interactive/bin`).
+
+> **Runtime dependency note:** `dsh-acp-interactive` depends on
+> `@agentclientprotocol/sdk@0.25.1` (exact) and declares
+> `@deepseek-ai/dsh-*@^0.1.1-rc.2` as peer dependencies — the same `0.1.1-rc.2`
+> line the official bridge used. On the public npm registry these resolve
+> automatically; on an internal mirror (e.g. a private Verdaccio), those
+> transitive/peer packages must be mirrored first.
+
 ## What it adds
 
 | ACP method | Official `dsh-acp` | This package |

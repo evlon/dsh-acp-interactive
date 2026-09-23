@@ -4,3 +4,4 @@ lib/
 .sessions/
 session-query.db
 .DS_Store
+*.tgz

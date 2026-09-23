@@ -9,7 +9,7 @@
  */
 
 import { parseArgs } from 'node:util'
-import { boot, installFailLoud, loadEnv, resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { boot, installFailLoud, loadEnv, loadOverlayPatches, resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
 
 const NAME = 'dsh-acp-interactive'
 
@@ -18,7 +18,10 @@ const snapshotMode = process.env['DSH_SNAPSHOT']
 if (snapshotMode !== 'replay') loadEnv(NAME)
 const { values } = parseArgs({
   args: process.argv.slice(2),
-  options: { config: { type: 'string', short: 'c' } },
+  options: {
+    config: { type: 'string', short: 'c' },
+    patch: { type: 'string', short: 'p' },
+  },
   strict: true,
 })
 // Resolve the config path: `--config`/`-c` CLI arg wins, then the `DSH_ACP_CONFIG`
@@ -26,7 +29,15 @@ const { values } = parseArgs({
 // local default. This keeps HiCoding-style process spawns (`command` + optional
 // single-token args) working without relying on multi-token argument splitting.
 const configPath = values.config ?? process.env['DSH_ACP_CONFIG'] ?? './cordis.yml'
-const ctx = await boot(NAME, resolveConfigPath(configPath, snapshotMode))
+// Optional overlay patch list: `--patch`/`-p` CLI arg wins, then the
+// `DSH_ACP_PATCH` env var (lets hosts such as HiCoding inject a generated
+// override — model/MCP/skill overrides — without passing args), mirroring the
+// `config` resolution contract. A missing file throws (the host named it); an
+// unset value means "no overlay". This is the base+override seam that lets a
+// host override the self-contained `cordis.yml` without editing it in place.
+const patchPath = values.patch ?? process.env['DSH_ACP_PATCH']
+const patches = patchPath === undefined ? undefined : loadOverlayPatches(NAME, patchPath)
+const ctx = await boot(NAME, resolveConfigPath(configPath, snapshotMode), patches)
 if (snapshotMode !== undefined) {
   process.stdin.on('end', () => {
     void ctx.fiber.dispose().then(() => { process.exit(0) })

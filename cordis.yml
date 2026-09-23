@@ -3,15 +3,19 @@
 # set for the smoke path; optional tooling (subagent/workflow/fs) is added back
 # once the core resume/list loop is verified.
 
-# The DeepSeek adapter.
+# The DeepSeek adapter, pointed at the company LLM gateway (llm.ai.ict.cmcc).
+# baseURL uses the domain so the fetch Host header routes correctly through
+# Higress; the verification container maps the domain via /etc/hosts.
 - id: llm-deepseek
   name: '@deepseek-ai/dsh-llm-deepseek'
   config:
+    baseURL: http://llm.ai.ict.cmcc/v1
+    apiKeyEnv: DEEPSEEK_API_KEY
     thinking: enabled
     reasoningEffort: max
     models:
-      - id: deepseek-v4-flash
-      - id: deepseek-v4-pro
+      - id: deepseek/deepseek-v4-flash
+      - id: deepseek/deepseek-v4-pro
 
 # Sandbox + filesystem + bash executor, mirroring the official ACP agent.
 - id: sandbox
@@ -41,7 +45,7 @@
   name: 'dsh-acp-interactive/app'
   config:
     provider: deepseek-official
-    model: deepseek-v4-pro
+    model: deepseek/deepseek-v4-pro
     interactive: true
     persistenceRoot: !!js process.env.DSH_SNAPSHOT_SESSIONS_ROOT ?? './.sessions'
     persistenceCompression: !!js "process.env.DSH_SNAPSHOT === undefined ? 'zstd' : 'none'"

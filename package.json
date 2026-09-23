@@ -1,7 +1,7 @@
 {
   "name": "dsh-acp-interactive",
   "description": "Interactive ACP server for DeepSeek Harness: adds session/list + session/load (resume) to the official automation-only ACP bridge, for IDE-style clients like HiCoding",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publishConfig": {
     "access": "public"
   },
@@ -40,7 +40,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "0.25.1"
+    "@agentclientprotocol/sdk": "0.25.1",
+    "@deepseek-ai/dsh-mcp-client": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-skill-filesystem": "^0.1.1-rc.2"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
